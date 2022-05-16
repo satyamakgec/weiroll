@@ -75,6 +75,8 @@ library CommandBuilder {
             idx = uint8(indices[i]);
             if (idx == IDX_END_OF_ARGS) break;
 
+            uint8 masked_idx = uint8(idx & IDX_VALUE_MASK);
+
             if (idx & IDX_VARIABLE_LENGTH != 0) {
                 if (idx == IDX_USE_STATE) {
                     assembly {
@@ -84,14 +86,14 @@ library CommandBuilder {
                     free += stateData.length - 32;
                     unchecked{count += 32;}
                 } else {
-                    uint256 arglen = state[idx & IDX_VALUE_MASK].length;
+                    uint256 arglen = state[masked_idx].length;
 
                     // Variable length data; put a pointer in the slot and write the data at the end
                     assembly {
                         mstore(add(add(ret, 36), count), free)
                     }
                     memcpy(
-                        state[idx & IDX_VALUE_MASK],
+                        state[masked_idx],
                         0,
                         ret,
                         free + 4,
@@ -102,7 +104,7 @@ library CommandBuilder {
                 }
             } else {
                 // Fixed length data; write it directly
-                bytes memory statevar = state[idx & IDX_VALUE_MASK];
+                bytes memory statevar = state[masked_idx];
                 assembly {
                     mstore(add(add(ret, 36), count), mload(add(statevar, 32)))
                 }
