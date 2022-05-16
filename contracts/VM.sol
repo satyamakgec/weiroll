@@ -84,7 +84,7 @@ abstract contract VM {
                 bytes memory v = state[uint8(bytes1(indices))];
                 require(v.length == 32, "Invalid data length");
                 assembly {
-                    mstore(calleth, add(v, 0x20))
+                    calleth := mload(add(v, 0x20))
                 }
                 (success, outdata) = address(uint160(uint256(command))).call{ // target
                     value: calleth
