@@ -82,6 +82,7 @@ abstract contract VM {
             } else if (flags & FLAG_CT_MASK == FLAG_CT_VALUECALL) {
                 uint256 calleth;
                 bytes memory v = state[uint8(bytes1(indices))];
+                require(v.length == 32, "Invalid data length");
                 assembly {
                     mstore(calleth, add(v, 0x20))
                 }
