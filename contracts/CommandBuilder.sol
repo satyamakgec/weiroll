@@ -1,13 +1,27 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.11;
-
-uint256 constant IDX_VARIABLE_LENGTH = 0x80;
-uint256 constant IDX_VALUE_MASK = 0x7f;
-uint256 constant IDX_END_OF_ARGS = 0xff;
-uint256 constant IDX_USE_STATE = 0xfe;
+pragma solidity 0.8.11;
 
 library CommandBuilder {
+
+    // In the in/o format, if the indexed value is `0x80` then it should be treated as teh variable-length argument.
+    uint256 constant IDX_VARIABLE_LENGTH = 0x80;
+    
+    // Used for bit masking.
+    uint256 constant IDX_VALUE_MASK = 0x7f;
+
+    // In the in/o format, idx value `0xff indicates the end of the parameter list, no encoding action will be taken,
+    // and all further bytes in the list will be ignored. If the first byte in the input list is `0xff`, then the 
+    // function will be called with no parameters. If `o` equals `0xff`, then it specifies that the command's return
+    // should be ignored.
+    uint256 constant IDX_END_OF_ARGS = 0xff;
+
+    // In the in/o format if idx equals `0xfe` inside of an `in` list byte, then the parameter
+    // at that position is constructed by feeding the entire state array into abi.encode and 
+    // passing it to the function as a single argument. If it's specified as part of the `o` output target, 
+    // then the output of that command is written directly to the state instead via abi.decode.
+    uint256 constant IDX_USE_STATE = 0xfe;
+
     function buildInputs(
         bytes[] memory state,
         bytes4 selector,
@@ -61,6 +75,8 @@ library CommandBuilder {
             idx = uint8(indices[i]);
             if (idx == IDX_END_OF_ARGS) break;
 
+            uint8 masked_idx = uint8(idx & IDX_VALUE_MASK);
+
             if (idx & IDX_VARIABLE_LENGTH != 0) {
                 if (idx == IDX_USE_STATE) {
                     assembly {
@@ -70,14 +86,14 @@ library CommandBuilder {
                     free += stateData.length - 32;
                     unchecked{count += 32;}
                 } else {
-                    uint256 arglen = state[idx & IDX_VALUE_MASK].length;
+                    uint256 arglen = state[masked_idx].length;
 
                     // Variable length data; put a pointer in the slot and write the data at the end
                     assembly {
                         mstore(add(add(ret, 36), count), free)
                     }
                     memcpy(
-                        state[idx & IDX_VALUE_MASK],
+                        state[masked_idx],
                         0,
                         ret,
                         free + 4,
@@ -88,7 +104,7 @@ library CommandBuilder {
                 }
             } else {
                 // Fixed length data; write it directly
-                bytes memory statevar = state[idx & IDX_VALUE_MASK];
+                bytes memory statevar = state[masked_idx];
                 assembly {
                     mstore(add(add(ret, 36), count), mload(add(statevar, 32)))
                 }

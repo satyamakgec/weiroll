@@ -1,21 +1,22 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.11;
+pragma solidity 0.8.11;
 
 import "./CommandBuilder.sol";
 
-uint256 constant FLAG_CT_DELEGATECALL = 0x00;
-uint256 constant FLAG_CT_CALL = 0x01;
-uint256 constant FLAG_CT_STATICCALL = 0x02;
-uint256 constant FLAG_CT_VALUECALL = 0x03;
-uint256 constant FLAG_CT_MASK = 0x03;
-uint256 constant FLAG_EXTENDED_COMMAND = 0x80;
-uint256 constant FLAG_TUPLE_RETURN = 0x40;
-
-uint256 constant SHORT_COMMAND_FILL = 0x000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
-
 
 abstract contract VM {
+
+    uint256 constant FLAG_CT_DELEGATECALL = 0x00;
+    uint256 constant FLAG_CT_CALL = 0x01;
+    uint256 constant FLAG_CT_STATICCALL = 0x02;
+    uint256 constant FLAG_CT_VALUECALL = 0x03;
+    uint256 constant FLAG_CT_MASK = 0x03;
+    uint256 constant FLAG_EXTENDED_COMMAND = 0x80;
+    uint256 constant FLAG_TUPLE_RETURN = 0x40;
+
+    uint256 constant SHORT_COMMAND_FILL = 0x000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+
     using CommandBuilder for bytes[];
 
     address immutable self;
@@ -46,7 +47,7 @@ abstract contract VM {
             flags = uint256(uint8(bytes1(command << 32)));
 
             if (flags & FLAG_EXTENDED_COMMAND != 0) {
-                indices = commands[i++];
+                indices = commands[++i];
             } else {
                 indices = bytes32(uint256(command << 40) | SHORT_COMMAND_FILL);
             }
@@ -81,8 +82,9 @@ abstract contract VM {
             } else if (flags & FLAG_CT_MASK == FLAG_CT_VALUECALL) {
                 uint256 calleth;
                 bytes memory v = state[uint8(bytes1(indices))];
+                require(v.length == 32, "Invalid data length");
                 assembly {
-                    mstore(calleth, add(v, 0x20))
+                    calleth := mload(add(v, 0x20))
                 }
                 (success, outdata) = address(uint160(uint256(command))).call{ // target
                     value: calleth
@@ -91,7 +93,7 @@ abstract contract VM {
                     state.buildInputs(
                         //selector
                         bytes4(command),
-                        bytes32(uint256(indices << 8) | IDX_END_OF_ARGS)
+                        bytes32(uint256(indices << 8) | CommandBuilder.IDX_END_OF_ARGS)
                     )
                 );
             } else {
